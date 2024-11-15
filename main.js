@@ -79,7 +79,7 @@ scene.add(player);
 
 player.position.y = 1; // Start above the ground
 
-let leftArm, rightArm, leftLeg, rightLeg;
+let leftArm, rightArm, leftLeg, rightLeg, leftAntenna, rightAntenna;
 
 // Function to add arms, legs, and antennas to the player
 function addCharacterParts() {
@@ -118,13 +118,13 @@ function addCharacterParts() {
   const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
 
   // Left Antenna
-  const leftAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+  leftAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
   leftAntenna.position.set(-0.2, 0.5, 0); // Positioned above and to the left
   leftAntenna.rotation.z = Math.PI / 6;
   player.add(leftAntenna);
 
   // Right Antenna
-  const rightAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+  rightAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
   rightAntenna.position.set(0.2, 0.5, 0); // Positioned above and to the right
   rightAntenna.rotation.z = -Math.PI / 6;
   player.add(rightAntenna);
@@ -147,14 +147,59 @@ function addCharacterParts() {
 // Call the function to add character parts to the player
 addCharacterParts();
 
-// Function to create platforms
 function createPlatform(x, y, z) {
-  const platformGeometry = new THREE.BoxGeometry(15, 0.1, 10);
+  const platformGroup = new THREE.Group();
   const platformMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-  const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-  platform.position.set(x, y, z);
-  scene.add(platform);
-  return platform;
+
+  const platformWidth = 15;
+  const platformHeight = 0.1 ;
+  const platformDepth = 8;
+  const holeSize =  3  * Math.floor(Math.random() * 3) + 5;
+
+  const holeOffsetX = Math.random() * (platformWidth - holeSize) - (platformWidth - holeSize) / 2;
+  const holeOffsetZ = Math.random() * (platformDepth - holeSize) - (platformDepth - holeSize) / 2;
+
+
+  if (holeOffsetX - holeSize / 2 > -platformWidth / 2) {
+    const leftWidth = holeOffsetX - holeSize / 2 + platformWidth / 2;
+    const leftPlatformGeometry = new THREE.BoxGeometry(leftWidth, platformHeight, platformDepth);
+    const leftPlatform = new THREE.Mesh(leftPlatformGeometry, platformMaterial);
+    leftPlatform.position.set(x - platformWidth / 2 + leftWidth / 2, y, z);
+    platformGroup.add(leftPlatform);
+  }
+
+
+  if (holeOffsetX + holeSize / 2 < platformWidth / 2) {
+    const rightWidth = platformWidth / 2 - holeOffsetX - holeSize / 2;
+    const rightPlatformGeometry = new THREE.BoxGeometry(rightWidth, platformHeight, platformDepth);
+    const rightPlatform = new THREE.Mesh(rightPlatformGeometry, platformMaterial);
+    rightPlatform.position.set(x + platformWidth / 2 - rightWidth / 2, y, z);
+    platformGroup.add(rightPlatform);
+  }
+
+
+  if (holeOffsetZ - holeSize / 2 > -platformDepth / 2) {
+    const frontDepth = holeOffsetZ - holeSize / 2 + platformDepth / 2;
+    const frontPlatformGeometry = new THREE.BoxGeometry(holeSize, platformHeight, frontDepth);
+    const frontPlatform = new THREE.Mesh(frontPlatformGeometry, platformMaterial);
+    frontPlatform.position.set(x + holeOffsetX, y, z + platformDepth / 2 - frontDepth / 2);
+    platformGroup.add(frontPlatform);
+  }
+
+
+  if (holeOffsetZ + holeSize / 2 < platformDepth / 2) {
+    const backDepth = platformDepth / 2 - holeOffsetZ - holeSize / 2;
+    const backPlatformGeometry = new THREE.BoxGeometry(holeSize, platformHeight, backDepth);
+    const backPlatform = new THREE.Mesh(backPlatformGeometry, platformMaterial);
+    backPlatform.position.set(x + holeOffsetX, y, z - platformDepth / 2 + backDepth / 2);
+    platformGroup.add(backPlatform);
+  }
+
+
+  platformGroup.position.set(x, y, z);
+  scene.add(platformGroup);
+
+  return platformGroup;
 }
 
 // Function to create walls
@@ -196,20 +241,27 @@ const platforms = [];
 const walls = [];
 for (let i = 0; i < 100; i++) {
   platforms.push(createPlatform(0, 0, -i * 2));
-  walls.push(...createWalls(0, 0, -i * 2));
+  // platforms.push(createPlatform(Math.random() * 15 - 7.5, 0, -i * 2));
+  walls.push(createWalls(0, 0, -i * 2));
 }
 
 // Raycaster for detecting platforms below player
 const raycaster = new THREE.Raycaster();
+const leftRaycaster = new THREE.Raycaster();
+const rightRaycaster = new THREE.Raycaster();
+
 const downVector = new THREE.Vector3(0, -1, 0); // Downward direction
+const leftDirection = new THREE.Vector3(-1, 0, 0); // Left direction vector
+const rightDirection = new THREE.Vector3(1, 0, 0);  // Right direction vector
 
 // Player movement variables
-let velocityY = 10;
-const gravity = -0.02;
-const jumpStrength = 0.5;
+let velocityY = 9.81;
+const gravity = -0.002;
+const jumpStrength = 0.15   ;
 let isJumping = false;
-let forwardSpeed = 0.2;
+let forwardSpeed = 0.15;
 const endPositionZ = -200; // Define end position where player stops
+
 
 // Track if the game has started
 let gameStarted = false;
@@ -223,6 +275,24 @@ function checkPlatformBelow() {
   return intersects.length > 0 && intersects[0].distance <= 1;
 }
 
+// Function to check for wall collisions on the left
+function checkWallCollisionLeft() {
+  leftRaycaster.set(player.position, leftDirection);
+  const intersects = leftRaycaster.intersectObjects(walls, true); // Check all walls
+
+  // Return true if a wall is detected close to the left
+  return intersects.length > 0 && intersects[0].distance <= 0.5;
+}
+
+// Function to check for wall collisions on the right
+function checkWallCollisionRight() {
+  rightRaycaster.set(player.position, rightDirection);
+  const intersects = rightRaycaster.intersectObjects(walls, true); // Check all walls
+
+  // Return true if a wall is detected close to the right
+  return intersects.length > 0 && intersects[0].distance <= 0.5;
+}
+
 function collisions(){
 
 }
@@ -230,26 +300,55 @@ function collisions(){
 // Set up a clock to track time for the animation
 const clock = new THREE.Clock();
 
-// Function to animate limbs based on elapsed time
-function animateLimbs() {
+// Function to animate limbs and antennas
+function animateLimbsAndAntennas() {
   const time = clock.getElapsedTime();
   const speed = 5; // Speed of the swinging motion
 
   // Swing arms and legs back and forth
-  leftArm.rotation.x = Math.sin(time * speed) * 0.5;
-  rightArm.rotation.x = -Math.sin(time * speed) * 0.5;
+  // leftArm.rotation.x = Math.sin(time * speed) * 0.5;
+  // rightArm.rotation.x = -Math.sin(time * speed) * 0.5;
   leftLeg.rotation.x = -Math.sin(time * speed) * 0.5;
   rightLeg.rotation.x = Math.sin(time * speed) * 0.5;
+
+
 }
 
 let targetRotationZ = 0; // Target rotation for leaning
 
+const fallThreshold = -40; // Define the height at which to reset the player
+const startPosition = { x: 0, y: 1, z: 0 }; // Starting position for the player
+
+function resetPlayer() {
+  // Reset position to the starting position
+  player.position.set(startPosition.x, startPosition.y, startPosition.z);
+
+  // Reset velocity and other states
+  velocityY = 0;
+  isJumping = false;
+  isPeakReached = false;
+
+  // Optionally reset arm position
+  leftArm.matrix.identity();
+  rightArm.matrix.identity();
+  leftArm.position.set(-0.6, 0.5, 0);
+  rightArm.position.set(0.6, 0.5, 0);
+  leftArm.updateMatrixWorld(true);
+  rightArm.updateMatrixWorld(true);
+}
+
 // Player controls and gravity //&& player.position.z > endPositionZ
 function updatePlayer() {
-  if (gameStarted ) {
+  if (gameStarted) {
     player.position.z -= forwardSpeed; // Constant forward movement
-    animateLimbs();
   }
+  if (keys.ArrowLeft) { 
+   player.position.x -= 0.1; // Move left
+ }
+ else if (keys.ArrowRight) {
+   player.position.x += 0.1; // Move right
+ }
+ animateLimbsAndAntennas();
 
   // Check if the player should be falling
   if (!checkPlatformBelow()) {
@@ -260,7 +359,7 @@ function updatePlayer() {
 
   // Apply vertical movement (falling or jumping)
   player.position.y += velocityY;
-  // need to fix the leanign motion
+
   // Stop the player from falling through the ground
   if (player.position.y <= 1 && checkPlatformBelow()) {
     player.position.y = 1;
@@ -268,19 +367,51 @@ function updatePlayer() {
     isJumping = false;
   }
 
-  if (keys.ArrowLeft) {
-    player.position.x -= 0.1; // Move left
-    targetRotationZ = 1; // Lean to the left
-  }
-  else if (keys.ArrowRight) {
-    player.position.x += 0.1; // Move right
-    targetRotationZ = -1  ; // Lean to the right
-  }else {
-    // Reset rotation when not moving left or right
-    targetRotationZ = 0;
-  }
+  // Left Arm Transformation
+  let leftArmTransform = new THREE.Matrix4();
+  const leftSwingAngle = Math.sin(-Math.PI * velocityY * -1);
+  const leftSide = translationMatrix(-1 * Math.sin(20), 0, 0);
+  const leftRotation = rotationMatrixZ(leftSwingAngle);
+  const leftTranslationToOrigin = translationMatrix(-0.6, -0.6, 0);
+  const leftTranslationBack = translationMatrix(0.5, 0.6, 0);
+  const leftTranslationUP = translationMatrix(0.7, -0.45, 0);
+  const leftRotationSide = rotationMatrixZ(Math.sin(5));
 
+  leftArmTransform.multiplyMatrices(leftTranslationBack, leftArmTransform);
+  leftArmTransform.multiplyMatrices(leftTranslationToOrigin, leftArmTransform);
+  leftArmTransform.multiplyMatrices(leftRotation, leftArmTransform);
+  leftArmTransform.multiplyMatrices(leftSide, leftArmTransform);
+  leftArmTransform.multiplyMatrices(leftTranslationUP, leftArmTransform);
+  leftArmTransform.multiplyMatrices(leftRotationSide, leftArmTransform);
+
+  leftArm.matrix.copy(leftArmTransform);
+  leftArm.matrixAutoUpdate = false;
+
+  // Right Arm Transformation (Mirrored)
+  let rightArmTransform = new THREE.Matrix4();
+  const rightSwingAngle = Math.sin(-Math.PI * velocityY * -1);
+  const rightSide = translationMatrix(1 * Math.sin(20), 0, 0); // Mirrored translation
+  const rightRotation = rotationMatrixZ(-rightSwingAngle); // Opposite rotation direction
+  const rightTranslationToOrigin = translationMatrix(0.6, -0.6, 0); // Mirrored translation to origin
+  const rightTranslationBack = translationMatrix(-0.5, 0.6, 0); // Mirrored translation back
+  const rightTranslationUP = translationMatrix(-0.7, -0.45, 0); // Mirrored translation UP
+  const rightRotationSide = rotationMatrixZ(-Math.sin(5)); // Opposite side rotation
+
+  rightArmTransform.multiplyMatrices(rightTranslationBack, rightArmTransform);
+  rightArmTransform.multiplyMatrices(rightTranslationToOrigin, rightArmTransform);
+  rightArmTransform.multiplyMatrices(rightRotation, rightArmTransform);
+  rightArmTransform.multiplyMatrices(rightSide, rightArmTransform);
+  rightArmTransform.multiplyMatrices(rightTranslationUP, rightArmTransform);
+  rightArmTransform.multiplyMatrices(rightRotationSide, rightArmTransform);
+
+  rightArm.matrix.copy(rightArmTransform);
+  rightArm.matrixAutoUpdate = false;
+
+  if (player.position.y < fallThreshold) {
+    resetPlayer();
+  }
 }
+
 
 
 // TODO: Implement the Gouraud Shader for Planet 2
