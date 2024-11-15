@@ -31,9 +31,13 @@ function createStarfield() {
 
 createStarfield();
 
+
+
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+
+scene.background = new THREE.Color(0x111111); // Dark gray/black color
 
 function translationMatrix(tx, ty, tz) {
 	return new THREE.Matrix4().set(
@@ -149,16 +153,21 @@ addCharacterParts();
 
 function createPlatform(x, y, z) {
   const platformGroup = new THREE.Group();
-  const platformMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+
+  // Define a material with Phong shading for specular highlights
+  const platformMaterial = new THREE.MeshPhongMaterial({
+    color: 0x00ff00,          // Swampy green-blue color
+    shininess: 40,            // Moderate shininess for specular highlights
+    specular: 0xffffff        // White specular highlight
+  });
 
   const platformWidth = 15;
-  const platformHeight = 0.1 ;
+  const platformHeight = 0.1;
   const platformDepth = 8;
-  const holeSize =  3  * Math.floor(Math.random() * 3) + 5;
+  const holeSize = 3 * Math.floor(Math.random() * 3) + 5;
 
   const holeOffsetX = Math.random() * (platformWidth - holeSize) - (platformWidth - holeSize) / 2;
   const holeOffsetZ = Math.random() * (platformDepth - holeSize) - (platformDepth - holeSize) / 2;
-
 
   if (holeOffsetX - holeSize / 2 > -platformWidth / 2) {
     const leftWidth = holeOffsetX - holeSize / 2 + platformWidth / 2;
@@ -168,7 +177,6 @@ function createPlatform(x, y, z) {
     platformGroup.add(leftPlatform);
   }
 
-
   if (holeOffsetX + holeSize / 2 < platformWidth / 2) {
     const rightWidth = platformWidth / 2 - holeOffsetX - holeSize / 2;
     const rightPlatformGeometry = new THREE.BoxGeometry(rightWidth, platformHeight, platformDepth);
@@ -176,7 +184,6 @@ function createPlatform(x, y, z) {
     rightPlatform.position.set(x + platformWidth / 2 - rightWidth / 2, y, z);
     platformGroup.add(rightPlatform);
   }
-
 
   if (holeOffsetZ - holeSize / 2 > -platformDepth / 2) {
     const frontDepth = holeOffsetZ - holeSize / 2 + platformDepth / 2;
@@ -186,7 +193,6 @@ function createPlatform(x, y, z) {
     platformGroup.add(frontPlatform);
   }
 
-
   if (holeOffsetZ + holeSize / 2 < platformDepth / 2) {
     const backDepth = platformDepth / 2 - holeOffsetZ - holeSize / 2;
     const backPlatformGeometry = new THREE.BoxGeometry(holeSize, platformHeight, backDepth);
@@ -195,12 +201,12 @@ function createPlatform(x, y, z) {
     platformGroup.add(backPlatform);
   }
 
-
   platformGroup.position.set(x, y, z);
   scene.add(platformGroup);
 
   return platformGroup;
 }
+
 
 // Function to create walls
 function createWalls(x, y, z) {
@@ -222,15 +228,20 @@ function createWalls(x, y, z) {
   return [wall, wall2];
 }
 
-const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Softer ambient light
-scene.add(ambientLight);
+// const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Softer ambient light
+// scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-directionalLight.position.set(10, 10, 10);
-scene.add(directionalLight);
+const playerLight = new THREE.PointLight(0xFFFFFF, 1.5, 10, 2);
+player.add(playerLight);
+playerLight.position.set(0, 0, 0); // Center of the player
 
-// Scene background color for contrast
-scene.background = new THREE.Color(0x333333); // Dark gray
+const lightHelper = new THREE.PointLightHelper(playerLight, 0.5); // Visual helper with a radius of 0.5
+scene.add(lightHelper);
+
+//
+// const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+// directionalLight.position.set(10, 10, 10);
+// scene.add(directionalLight);
 
 // Updated wall material with flatShading off
 const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x0000FF, flatShading: false });
@@ -326,7 +337,6 @@ function resetPlayer() {
   // Reset velocity and other states
   velocityY = 0;
   isJumping = false;
-  isPeakReached = false;
 
   // Optionally reset arm position
   leftArm.matrix.identity();
@@ -342,7 +352,7 @@ function updatePlayer() {
   if (gameStarted) {
     player.position.z -= forwardSpeed; // Constant forward movement
   }
-  if (keys.ArrowLeft) { 
+  if (keys.ArrowLeft) {
    player.position.x -= 0.1; // Move left
  }
  else if (keys.ArrowRight) {
