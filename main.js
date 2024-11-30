@@ -228,8 +228,7 @@ function createWalls(x, y, z) {
   return [wall, wall2];
 }
 
-// const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Softer ambient light
-// scene.add(ambientLight);
+
 
 const playerLight = new THREE.PointLight(0xFFFFFF, 1.5, 10, 2);
 player.add(playerLight);
@@ -238,22 +237,33 @@ playerLight.position.set(0, 0, 0); // Center of the player
 const lightHelper = new THREE.PointLightHelper(playerLight, 0.5); // Visual helper with a radius of 0.5
 scene.add(lightHelper);
 
-//
-// const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-// directionalLight.position.set(10, 10, 10);
-// scene.add(directionalLight);
+
 
 // Updated wall material with flatShading off
 const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x0000FF, flatShading: false });
 
+function createRoof(x, y, z) {
+  const roofGeometry = new THREE.BoxGeometry(15, 0.1, 10);
+  const roofMaterial = new THREE.MeshPhongMaterial({
+    color: 0x00ff00,          // Swampy green-blue color
+    shininess: 40,            // Moderate shininess for specular highlights
+    specular: 0xffffff        // White specular highlight
+  });
+  const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+  roof.position.set(x, y + 10, z);
+  scene.add(roof);
+  return roof;
+}
 
 // Generate platforms and walls
 const platforms = [];
 const walls = [];
+const roofs = [];
 for (let i = 0; i < 100; i++) {
   platforms.push(createPlatform(0, 0, -i * 2));
   // platforms.push(createPlatform(Math.random() * 15 - 7.5, 0, -i * 2));
   walls.push(createWalls(0, 0, -i * 2));
+  roofs.push(createRoof(0, 0, -i * 2));
 }
 
 // Raycaster for detecting platforms below player
@@ -262,8 +272,8 @@ const leftRaycaster = new THREE.Raycaster();
 const rightRaycaster = new THREE.Raycaster();
 
 const downVector = new THREE.Vector3(0, -1, 0); // Downward direction
-const leftDirection = new THREE.Vector3(-1, 0, 0); // Left direction vector
-const rightDirection = new THREE.Vector3(1, 0, 0);  // Right direction vector
+const rightVector = new THREE.Vector3(1, 0, 0); // Right direction
+const leftVector = new THREE.Vector3(-1, 0, 0); // Left direction
 
 // Player movement variables
 let velocityY = 9.81;
@@ -286,22 +296,22 @@ function checkPlatformBelow() {
   return intersects.length > 0 && intersects[0].distance <= 1;
 }
 
-// Function to check for wall collisions on the left
-function checkWallCollisionLeft() {
-  leftRaycaster.set(player.position, leftDirection);
-  const intersects = leftRaycaster.intersectObjects(walls, true); // Check all walls
+// Function to check for wall collisions on the right
+function checkPlatformRight() {
+  raycaster.set(player.position, rightVector);
+  const intersects = raycaster.intersectObjects(platforms);
 
-  // Return true if a wall is detected close to the left
-  return intersects.length > 0 && intersects[0].distance <= 0.5;
+  // Return true if a platform is detected close below the player
+  return intersects.length > 0 && intersects[0].distance <= 1;
 }
 
-// Function to check for wall collisions on the right
-function checkWallCollisionRight() {
-  rightRaycaster.set(player.position, rightDirection);
-  const intersects = rightRaycaster.intersectObjects(walls, true); // Check all walls
+// Function to check for wall collisions on the left
+function checkPlatformLeft() {
+  raycaster.set(player.position, leftVector);
+  const intersects = raycaster.intersectObjects(platforms);
 
-  // Return true if a wall is detected close to the right
-  return intersects.length > 0 && intersects[0].distance <= 0.5;
+  // Return true if a platform is detected close below the player
+  return intersects.length > 0 && intersects[0].distance <= 1;
 }
 
 function collisions(){
@@ -316,9 +326,6 @@ function animateLimbsAndAntennas() {
   const time = clock.getElapsedTime();
   const speed = 5; // Speed of the swinging motion
 
-  // Swing arms and legs back and forth
-  // leftArm.rotation.x = Math.sin(time * speed) * 0.5;
-  // rightArm.rotation.x = -Math.sin(time * speed) * 0.5;
   leftLeg.rotation.x = -Math.sin(time * speed) * 0.5;
   rightLeg.rotation.x = Math.sin(time * speed) * 0.5;
 
@@ -376,6 +383,14 @@ function updatePlayer() {
     velocityY = 0;
     isJumping = false;
   }
+
+  // Stop player from intersecting walls
+  if (player.position.x >= 6.5 && !checkPlatformRight()){
+    player.position.x = 6.5;
+  } else if (player.position.x <= -6.5 && !checkPlatformLeft()){
+    player.position.x = -6.5;
+  }
+
 
   // Left Arm Transformation
   let leftArmTransform = new THREE.Matrix4();
