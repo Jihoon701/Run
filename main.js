@@ -2,8 +2,8 @@ import * as THREE from 'three';
 
 // Set up scene, camera, and renderer
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.z = 5;
+let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+// camera.position.z = 5;
 
 
 // Function to create a starfield
@@ -227,9 +227,6 @@ function createWalls(x, y, z) {
   scene.add(wall2);
   return [wall, wall2];
 }
-
-
-
 const playerLight = new THREE.PointLight(0xFFFFFF, 1.5, 10, 2);
 player.add(playerLight);
 playerLight.position.set(0, 0, 0); // Center of the player
@@ -238,8 +235,6 @@ const lightHelper = new THREE.PointLightHelper(playerLight, 0.5); // Visual help
 scene.add(lightHelper);
 
 
-
-// Updated wall material with flatShading off
 const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x0000FF, flatShading: false });
 
 function createRoof(x, y, z) {
@@ -283,6 +278,9 @@ let isJumping = false;
 let forwardSpeed = 0.15;
 const endPositionZ = -200; // Define end position where player stops
 
+const gravityDirection = new THREE.Vector3(0, 0, 1); // Gravity pulls toward the wall
+
+let side = null;
 
 // Track if the game has started
 let gameStarted = false;
@@ -314,10 +312,6 @@ function checkPlatformLeft() {
   return intersects.length > 0 && intersects[0].distance <= 1;
 }
 
-function collisions(){
-
-}
-
 // Set up a clock to track time for the animation
 const clock = new THREE.Clock();
 
@@ -325,14 +319,9 @@ const clock = new THREE.Clock();
 function animateLimbsAndAntennas() {
   const time = clock.getElapsedTime();
   const speed = 5; // Speed of the swinging motion
-
   leftLeg.rotation.x = -Math.sin(time * speed) * 0.5;
   rightLeg.rotation.x = Math.sin(time * speed) * 0.5;
-
-
 }
-
-let targetRotationZ = 0; // Target rotation for leaning
 
 const fallThreshold = -40; // Define the height at which to reset the player
 const startPosition = { x: 0, y: 1, z: 0 }; // Starting position for the player
@@ -353,45 +342,106 @@ function resetPlayer() {
   leftArm.updateMatrixWorld(true);
   rightArm.updateMatrixWorld(true);
 }
+// side = "right"; 
+// side = "left";  
+side = "floor";
 
-// Player controls and gravity //&& player.position.z > endPositionZ
+
 function updatePlayer() {
   if (gameStarted) {
     player.position.z -= forwardSpeed; // Constant forward movement
   }
-  if (keys.ArrowLeft) {
-   player.position.x -= 0.1; // Move left
- }
- else if (keys.ArrowRight) {
-   player.position.x += 0.1; // Move right
- }
- animateLimbsAndAntennas();
 
-  // Check if the player should be falling
-  if (!checkPlatformBelow()) {
-    velocityY += gravity;
-  } else if (!isJumping) {
-    velocityY = 0; // Reset vertical velocity when landing on a platform
+  if(side == "right")
+  {
+    player.rotation.z = 1 * Math.PI / 2; // Rotate player to face the wall
+
+    if (keys.ArrowLeft) {
+      player.position.y -= 0.1; // Move left
+     }
+     else if (keys.ArrowRight) {
+       player.position.y += 0.1; // Move right
+     }
+     // Check if the player should be falling
+     if (!checkPlatformRight()) {
+      velocityY += gravity;
+    } else if (!isJumping) {
+      velocityY = 0; // Reset vertical velocity when landing on a platform
+    }
+
+    player.position.x -= velocityY;
+  }
+  else if(side == "left")
+  {
+    player.rotation.z = -1 * Math.PI / 2; // Rotate player to face the wall
+
+    if (keys.ArrowLeft) {
+      player.position.y += 0.1; // Move left
+     }
+     else if (keys.ArrowRight) {
+       player.position.y -= 0.1; // Move right
+     }
+     // Check if the player sh ould be falling
+     if (!checkPlatformLeft()) {
+      velocityY += gravity;
+    } else if (!isJumping) {
+      velocityY = 0; // Reset vertical velocity when landing on a platform
+    }
+
+    player.position.x += velocityY;
+  }
+  else if(side == "floor") {
+    player.rotation.z = player.rotation.z * 0 ; // Rotate player to face the wall
+    if (keys.ArrowLeft) {
+      player.position.x -= 0.1; // Move left
+     }
+     else if (keys.ArrowRight) {
+       player.position.x += 0.1; // Move right
+     }
+
+      // Check if the player should be falling
+      if (!checkPlatformBelow()) {
+        velocityY += gravity;
+      } else if (!isJumping) {
+        velocityY = 0; // Reset vertical velocity when landing on a platform
+      }
+
+      player.position.y += velocityY;
   }
 
-  // Apply vertical movement (falling or jumping)
-  player.position.y += velocityY;
+ animateLimbsAndAntennas();
+
 
   // Stop the player from falling through the ground
   if (player.position.y <= 1 && checkPlatformBelow()) {
     player.position.y = 1;
     velocityY = 0;
     isJumping = false;
+    // side = "floor";
   }
 
   // Stop player from intersecting walls
+
   if (player.position.x >= 6.5 && !checkPlatformRight()){
     player.position.x = 6.5;
+    velocityY = 0;
+    isJumping = false;
+    // side = "right";
   } else if (player.position.x <= -6.5 && !checkPlatformLeft()){
     player.position.x = -6.5;
+    velocityY = 0;
+    isJumping = false;
+    // side = "left";
+  }
+  if(player.position.x >= 6.49){
+    side = "right"; 
+  }else if(player.position.x <= -6.49){
+    side = "left";
+  }else if(player.position.y <= 1.00000001   ){
+    side = "floor";
   }
 
-
+  {
   // Left Arm Transformation
   let leftArmTransform = new THREE.Matrix4();
   const leftSwingAngle = Math.sin(-Math.PI * velocityY * -1);
@@ -431,7 +481,7 @@ function updatePlayer() {
 
   rightArm.matrix.copy(rightArmTransform);
   rightArm.matrixAutoUpdate = false;
-
+  }
   if (player.position.y < fallThreshold) {
     resetPlayer();
   }
@@ -439,7 +489,6 @@ function updatePlayer() {
 
 
 
-// TODO: Implement the Gouraud Shader for Planet 2
 function createGouraudMaterial(materialProperties) {
     // TODO: Implement the Vertex Shader in GLSL
     let vertexShader = `
@@ -476,7 +525,6 @@ function createGouraudMaterial(materialProperties) {
         void main() {
 						// the vertex's final reseting place( in NDCS):
 						gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-
 						// the final normal vector in screen space
             vec3 N = normalize(normalMatrix * normal); // Normal vector in camera space
             vec3 vertex_worldspace = (modelMatrix * vec4(position, 1.0)).xyz;
@@ -533,7 +581,6 @@ function createGouraudMaterial(materialProperties) {
     });
 }
 
-// Custom Phong Shader has already been implemented, no need to make change.
 function createPhongMaterial(materialProperties) {
     const numLights = 1;
     // Vertex Shader
@@ -649,7 +696,6 @@ function createPhongMaterial(materialProperties) {
     });
 }
 
-// TODO: Finish the custom shader for planet 3's ring with sinusoidal brightness variation
 function createRingMaterial(materialProperties) {
     let vertexShader = `
         varying vec3 vPosition;
@@ -683,7 +729,6 @@ const keys = {
   Space: false,
 };
 // Track the current rotation angle around the player (in degrees)
-let cameraAngle = 0;
 // Event listeners to track key states
 document.addEventListener('keydown', (event) => {
   if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === ' ') {
@@ -698,13 +743,6 @@ document.addEventListener('keydown', (event) => {
       gameStarted = true;
     }
   }
-  if (event.key === 'c') {
-    // Rotate camera 90 degrees to the right
-    cameraAngle -= 90;
-  } else if (event.key === 'v') {
-    // Rotate camera 90 degrees to the left
-    cameraAngle += 90;
-  }
 });
 
 document.addEventListener('keyup', (event) => {
@@ -715,19 +753,64 @@ document.addEventListener('keyup', (event) => {
 
 // Camera follows player
 function updateCamera() {
-  const radians = THREE.MathUtils.degToRad(cameraAngle);
 
-  // Calculate the new camera position based on the Y-axis rotation
   const radius = 5; // Distance from the player
-  camera.position.x = player.position.x + radius * Math.sin(radians);
-  camera.position.z = player.position.z + radius * Math.cos(radians);
-  camera.position.y = player.position.y + 2; // Keep camera slightly above the player
 
+  if(side == "left"){
+    // Rotate the camera to align with the "floor view" when on the left wall
+    const radians = THREE.MathUtils.degToRad(90); // 90-degree rotation for left wall
 
+    const x = player.position.x + radius * Math.sin(radians) - 2 ;
+    const z = player.position.z + radius * Math.cos(radians) + 5 ; // Use z-axis instead of y-axis for "floor view"
+    const y = player.position.y  ; // Maintain the player's height relative to the left wall
+
+    camera.position.set(x, y, z);
+    const zAxis = new THREE.Vector3(0, 0, 1); // Z-axis for rotation
+    const rotationAngle = Math.PI / 2; // 90 degrees in radians
+
+    camera.up.set(1, 0, 0);
+    camera.rotateOnAxis(zAxis, -rotationAngle); // Negative for clockwise rotation
+
+  }
+  else if(side == "right"){
+    // Rotate the camera to align with the "floor view" when on the left wall
+    const radians = THREE.MathUtils.degToRad(-90); // 90-degree rotation for left wall
+
+    const x = player.position.x + radius * Math.sin(radians) + 2 ;
+    const z = player.position.z + radius * Math.cos(radians) + 5 ; // Use z-axis instead of y-axis for "floor view"
+    const y = player.position.y  ; // Maintain the player's height relative to the left wall
+
+    camera.position.set(x, y, z);
+    const zAxis = new THREE.Vector3(0, 0, 1); // Z-axis for rotation
+    const rotationAngle = Math.PI / 2; // 90 degrees in radians
+
+    camera.up.set(-1, 0, 0);
+    camera.rotateOnAxis(zAxis, -rotationAngle); // Negative for clockwise rotation
+
+  }
+  else if (side == "floor") {
+    // Calculate the new camera position based on the Y-axis rotation
+    const radians = THREE.MathUtils.degToRad(0); // 90-degree rotation for left wall
+
+    const x = player.position.x + radius * Math.sin(radians) ;
+    const z = player.position.z + radius * Math.cos(radians)  + 1  ; // Use z-axis instead of y-axis for "floor view"
+    const y = player.position.y + 2; // Maintain the player's height relative to the left wall
+
+    camera.position.set(x, y, z);
+    const zAxis = new THREE.Vector3(0, 0, 0); // Z-axis for rotation
+    const rotationAngle = Math.PI / 2; // 90 degrees in radians
+
+    camera.up.set(0, 0, 0);
+    camera.rotateOnAxis(zAxis, 0); // Negative for clockwise rotation
+  }
+  
   camera.lookAt(player.position);
+
+
+  
 }
 
-// Render loop
+// Render loop 
 function animate() {
   requestAnimationFrame(animate);
 
